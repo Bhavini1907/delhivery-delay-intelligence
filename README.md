@@ -240,8 +240,11 @@ pip install -r requirements.txt
 python generate_data.py
 ```
 
-Run the Part A cleaning and feature-engineering cells in
-`Delhivery_Delay_Intelligence.ipynb` to create the modelling table.
+Run the Part A cleaning and EDA script to create the modelling table and Part A outputs:
+
+```bash
+python part_a_clean_eda.py
+```
 
 Then run the remaining scripts in this order:
 
