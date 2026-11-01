@@ -228,3 +228,173 @@ and threshold tuning.
 - outputs/part_c_thresholds.csv
 - outputs/part_c_final_test.csv
 - outputs/part_c_final_config.csv
+
+## How to run
+
+Clone the repository and install the pinned dependencies:
+
+```bash
+git clone https://github.com/Bhavini1907/delhivery-delay-intelligence.git
+cd delhivery-delay-intelligence
+pip install -r requirements.txt
+python generate_data.py
+```
+
+Run the Part A cleaning and feature-engineering cells in
+`Delhivery_Delay_Intelligence.ipynb` to create the modelling table.
+
+Then run the remaining scripts in this order:
+
+```bash
+python part_b_regression.py
+python part_c_classification.py
+python part_d_segments.py
+python package_model.py
+python predict_delay.py
+```
+
+`package_model.py` regenerates `models/delay_model.pkl`, the saved
+threshold, feature order and imputation values.
+`predict_delay.py` generates `outputs/new_shipment_actions.csv`.
+
+The model uses scikit-learn 1.6.1, pinned in requirements.txt.
+If the installed scikit-learn version differs, rerun
+`python package_model.py` before making predictions.
+
+## Data findings
+
+The cleaned modelling dataset contains 1,200 shipments across
+24 hubs, with 50 shipments per hub.
+
+| Segment | Hubs | Mean delivery hours | Delay rate |
+|---|---:|---:|---:|
+| Standard | 7 | 47.24 | 2.57% |
+| Watch | 8 | 56.81 | 15.50% |
+| Escalate | 9 | 64.65 | 46.00% |
+
+### K-means separation
+
+| K | Across/within ratio | Cluster sizes |
+|---:|---:|---|
+| 2 | 2.894 | 15-9 |
+| 3 | 5.393 | 9-8-7 |
+| 4 | 6.305 | 8-7-5-4 |
+| 5 | 6.887 | 8-7-4-3-2 |
+
+K=3 was retained because it provides useful operational groups
+without creating very small clusters. K=4 and K=5 have higher
+separation ratios but create clusters containing only four,
+three or two hubs.
+
+### Tier-versus-segment mismatches
+
+| Hub | City | Tier | Actual segment | Expected segment |
+|---|---|---:|---|---|
+| HUB07 | Kolkata | 1 | Watch | Standard |
+| HUB13 | Nagpur | 2 | Escalate | Watch |
+| HUB15 | Kochi | 2 | Escalate | Watch |
+| HUB22 | Dehradun | 3 | Watch | Escalate |
+
+These mismatches show that hub tier alone does not fully
+represent observed operational performance.
+
+## Operations recommendation
+
+The final classification model uses a probability threshold of 0.5.
+On the 180-row test set, it achieved:
+
+- Accuracy: 86.67%
+- Precision: 68.89%
+- Recall: 75.61%
+- F1-score: 72.09%
+
+This means approximately 7 of every 10 flagged shipments were
+actually delayed, while approximately 8 of every 10 delayed
+shipments were detected.
+
+### Hubs requiring escalation
+
+The following Escalate-segment hubs have the highest operational
+priority based on their observed delay rates:
+
+| Hub | Delay rate |
+|---|---:|
+| HUB13 | 46% |
+| HUB15 | 36% |
+| HUB17 | 46% |
+| HUB18 | 38% |
+| HUB19 | 62% |
+| HUB20 | 48% |
+| HUB21 | 40% |
+| HUB23 | 44% |
+| HUB24 | 54% |
+
+The tier mismatches should also be reviewed. HUB07 and HUB22
+perform worse or better than their tier implies, while HUB13
+and HUB15 are in the Escalate segment despite being Tier 2.
+Hub management should investigate capacity, route distance,
+stop counts and local operating conditions.
+
+### New shipment actions
+
+The prediction pipeline processed all 48 new shipments:
+
+- 8 shipments were flagged.
+- 6 flagged shipments require escalation to a hub manager.
+- 2 flagged shipments require a proactive customer call.
+- 40 shipments require no action.
+
+The alert threshold is 0.5. A flagged shipment assigned to an
+Escalate hub is sent to the hub manager; other flagged shipments
+receive a proactive customer call.
+
+## Production plan
+
+The following practices support reliable production use:
+
+| Area | Project implementation |
+|---|---|
+| Accuracy | Test-set precision, recall, F1 and accuracy are reported. |
+| Reliability | The packaged model is reloaded and checked against the original model. |
+| Reproducibility | Random states, stratified splits and dependency versions are fixed. |
+| Performance | The pipeline uses a compact set of selected features. |
+| Maintainability | Cleaning and feature engineering are shared through `src/shipment_prep.py`. |
+| Consistency | `feature_order.csv` preserves the training feature order during prediction. |
+| Monitorability | Prediction outputs and operational metrics are saved as CSV files. |
+
+### Monitoring and alert triggers
+
+Monitor these quantities at least weekly:
+
+1. Delayed shipment rate: investigate if it exceeds 20% or rises by 5 percentage points from the established baseline.
+2. Model recall: review the model if recall falls below 70%.
+3. Missing input values: investigate if more than 5% of values in an input feature are missing.
+4. Feature drift: investigate if the Population Stability Index (PSI) exceeds 0.20 for distance_km or promised_hours.
+5. Flagged shipment share: review operations if more than 30% of shipments are flagged.
+
+These are proposed initial triggers and should be calibrated using
+real production data.
+
+### Retraining and data drift
+
+Retrain the model quarterly, or earlier if monitoring shows sustained
+performance deterioration or a major operational change. Evaluate
+each retrained model on a time-based holdout before deployment.
+
+The sale period from 15 to 28 September should be compared with the
+same sale-event period in other years or comparable sale periods,
+rather than ordinary non-sale weeks. Use `sale_event_flag` to
+distinguish sale-related demand from normal operations.
+
+Potential drift sources include changes in delivery distance, stop
+counts, service-type mix, hub capacity, rainfall and sale volumes.
+
+## Limitations
+
+1. **Synthetic data:** The dataset is synthetic, so its patterns and model performance may not represent real delivery operations.
+2. **Small test sample:** The test set contains only 41 delayed shipments. Precision and recall estimates may change with a larger dataset.
+3. **Threshold selection:** The 0.5 classification threshold was selected using one validation split. Different samples may produce a different optimal threshold.
+4. **Random data split:** A random stratified split does not fully simulate predicting future shipments. A time-based evaluation is recommended before production deployment.
+5. **Fixed number of clusters:** K-means was configured to produce three hub segments. Actual hub behaviour may be more varied or may change over time.
+6. **Correlation is not causation:** Associations between distance, hub characteristics and delays do not prove that these factors directly cause delays.
+7. **Proposed monitoring triggers:** The production thresholds are starting recommendations and require calibration against real operational data.
