@@ -125,3 +125,106 @@ the influence of extreme values.
 - `outputs/part_b_gb_learning_rate.csv`
 - `outputs/part_b_cv.csv`
 - `part_b_regression.py`
+
+
+## Model results (classification)
+
+### 1. Baseline and model comparison
+
+The blind baseline predicts every shipment as on time. It achieves
+76.67% accuracy because most shipments are on time, but it detects
+no delayed shipments. Its recall and F1-score are both 0.
+
+The Logistic Regression model achieved validation accuracy of 90.56%,
+recall of 83.33%, and F1-score of 0.8046.
+
+The default Random Forest achieved validation accuracy of 90.56%,
+recall of 73.81%, and F1-score of 0.7848.
+
+### 2. Feature selection and noise analysis
+
+The five noise features together account for 22.44% of Random Forest
+feature importance. All five noise features ranked outside the top
+seven according to the F-score ranking.
+
+The seven highest-ranked features were:
+
+- distance_km
+- hub_tier
+- hub_daily_capacity
+- n_stops
+- promised_hours
+- rain_flag
+- sale_event_flag
+
+All seven had F-scores above 30.
+
+### 3. SelectKBest comparison
+
+| Selected features (k) | Validation F1 |
+|---:|---:|
+| 5 | 0.6988 |
+| 7 | 0.8333 |
+| 10 | 0.7857 |
+| 12 | 0.8049 |
+| 17 | 0.7848 |
+
+Using seven features produced the highest validation F1-score of 0.8333.
+Therefore, k=7 was selected for the final model.
+
+### 4. Hyperparameter tuning
+
+Grid Search evaluated 27 parameter combinations using five-fold
+cross-validation (135 total fits). Its best cross-validation accuracy
+was 0.8952 and its validation F1-score was 0.7750.
+
+Randomized Search evaluated 9 combinations using five-fold
+cross-validation (45 total fits). Its best cross-validation accuracy
+was 0.8905 and its validation F1-score was 0.7848.
+
+The default Random Forest using the same seven selected features
+achieved a higher validation F1-score of 0.8333. Therefore, the
+default model was retained instead of either tuned model.
+
+These results are based on a validation set of 180 shipments, so
+small differences should be interpreted cautiously.
+
+### 5. Threshold selection
+
+The final model used a probability threshold of 0.5. This was the
+highest tested threshold that maintained validation recall of at
+least 0.80.
+
+At this threshold, validation precision was 0.7955, recall was
+0.8333, and F1-score was 0.8140.
+
+### 6. Final test evaluation
+
+The untouched test set contained 180 shipments, including 41 delayed
+shipments.
+
+| Metric | Validation | Test |
+|---|---:|---:|
+| Precision | 0.7955 | 0.6889 |
+| Recall | 0.8333 | 0.7561 |
+| F1-score | 0.8140 | 0.7209 |
+
+Test recall was 7.72 percentage points lower than validation recall.
+Because the test set contains only 41 delayed shipments, each
+additional correctly detected or missed delayed shipment changes
+recall by approximately 2.44 percentage points.
+
+The test results provide an honest estimate of performance on
+unseen data. The test set was kept separate from model selection
+and threshold tuning.
+
+### 7. Part C output files
+
+- part_c_classification.py
+- outputs/part_c_models.csv
+- outputs/part_c_feature_scores.csv
+- outputs/part_c_selectk.csv
+- outputs/part_c_tuning.csv
+- outputs/part_c_thresholds.csv
+- outputs/part_c_final_test.csv
+- outputs/part_c_final_config.csv
